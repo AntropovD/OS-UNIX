@@ -72,13 +72,12 @@ function ctrl_c ()
 	exit 1
 }
 
-
-if [ -p "tictac" ]
+if [ -p "tic_tac_pipe" ]
 then
 	side=1
 else
-	mkfifo "tictac"
-	side=0
+	mkfifo "tic_tac_pipe"
+	side=2
 fi
 
 while true
@@ -96,8 +95,9 @@ do
 		tput clear
 		tput cup 11 3
 		tput setaf 1
-		echo "Coords must be [0-9]"
-	else
+		echo "Coords must be [1-9]"
+	else		
+		field[$(($arg - 1))]=$side
 		
 	fi
 	tput sgr0	
