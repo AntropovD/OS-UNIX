@@ -1,45 +1,47 @@
 #!/bin/bash
 
-field=( 0 0 0 0 0 0 0 0 0 )
-init_field=( 0 0 0 0 0 0 0 0 0 )
+FIELD=( 0 0 0 0 0 0 0 0 0 )
+INIT_FIELD=( 0 0 0 0 0 0 0 0 0 )
+PIPE="tic_toe_pipe"
 
 tput clear
 tput civis
 
 trap ctrl_c INT
+trap ctrl_z INT
 
-function print_game_field()
+function print_game_FIELD()
 {
 	print_title
 
 	tput cup 4 5; 
-	print_field ${field[0]}
+	print_FIELD ${FIELD[0]}
 	echo -n " | "
-	print_field ${field[1]}
+	print_FIELD ${FIELD[1]}
 	echo -n " | "
-	print_field ${field[2]}
+	print_FIELD ${FIELD[2]}
 	tput cup 5 5
 	echo "---------"
 	
 	tput cup 6 5
-	print_field ${field[3]}
+	print_FIELD ${FIELD[3]}
 	echo -n " | "
-	print_field ${field[4]}
+	print_FIELD ${FIELD[4]}
 	echo -n " | "
-	print_field ${field[5]}
+	print_FIELD ${FIELD[5]}
 	tput cup 7 5
 	echo "---------"
 	
 	tput cup 8 5
-	print_field ${field[6]}
+	print_FIELD ${FIELD[6]}
 	echo -n " | "
-	print_field ${field[7]}
+	print_FIELD ${FIELD[7]}
 	echo -n " | "
-	print_field ${field[8]}	
+	print_FIELD ${FIELD[8]}	
 	echo ""
 }
 
-function print_field()
+function print_FIELD()
 {
 	if [ $1 == "0" ]
 	then
@@ -72,23 +74,48 @@ function ctrl_c ()
 	exit 1
 }
 
-if [ -p "tic_tac_pipe" ]
+function ctrl_z ()
+{
+	tput sgr0	
+	tput cnorm
+	clear
+	find . -type p -delete	
+	exit 1
+}
+
+if [ -p $PIPE ]
 then
-	side=1
+	SIDE=1
+	ENEMY_SIDE=2
+	TURN=2
 else
-	mkfifo "tic_tac_pipe"
-	side=2
+	mkfifo $PIPE
+	SIDE=2
+	ENEMY_SIDE=1
+	TURN=1
 fi
 
 while true
-do 		
-	print_game_field		
+do 	
+	if [ $TURN -eq 2 ]
+	then
+		read -r line < $PIPE
+		if [[ "$line" =~ [0-9] ]]
+		then
+			FIELD[$(($arg - 1))]=$ENEMY_SIDE	
+			TURN=1
+		else				
+			continue
+		fi
+	fi	
+	
+	print_game_FIELD		
 	tput cup 10 3
-	tput setaf 2
+	tput setaf 2	
+	
 	read -p "Enter your turn: " -n 1 arg
 	tput cup 11 3
-	echo "                    "
-	
+	echo "                    "	
 	
 	if ! [[ "$arg" =~ [0-9] ]]
 	then	
@@ -97,8 +124,9 @@ do
 		tput setaf 1
 		echo "Coords must be [1-9]"
 	else		
-		field[$(($arg - 1))]=$side
-		
+		FIELD[$(($arg - 1))]=$SIDE		
+		echo $arg >$PIPE;
+		TURN=2
 	fi
 	tput sgr0	
 done 
