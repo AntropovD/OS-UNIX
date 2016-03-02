@@ -8,3 +8,5 @@ SOURCES += main.c
 OTHER_FILES += \
     config.txt
 
+HEADERS +=
+

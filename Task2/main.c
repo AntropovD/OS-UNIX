@@ -7,134 +7,195 @@
 #include <sys/param.h>
 #include <sys/resource.h>
 #include <unistd.h>
-#define _GNU_SOURCE
+#include<sys/wait.h>
 
-void execute_once(char ** argv)
-void execute_repeat(char ** argv);
-int create_daemon();//int argc, char *argv);
+typedef struct node {
+    int val;
+    struct node * next;
+} node_t;
 
-int main()
-{
+node_t *head = NULL;
+node_t *curr = NULL;
+
+void execute_once(char **argv);
+void execute_repeat(char **argv);
+void push(int val);
+void print_list();
+void remove_list(int val);
+void start_task(char **tokens, int size);
+
+int main(){
     FILE * fp;
     fp = fopen("config.txt", "r");
-    if (fp == NULL)
-    {
+    if (fp == NULL){
         printf("Config file not found");
+        fclose(fp);
         return 0;
     }
+    chdir("/");
+    openlog("Task Manager by Dantre", LOG_PID | LOG_CONS, LOG_DAEMON);
+    syslog(LOG_INFO, "Task Manager started");
+
     char * line = NULL;
     size_t len = 0;
     ssize_t read;
 
-    chdir("/");
-    openlog("Dmitry's Task Manager", LOG_PID | LOG_CONS, LOG_DAEMON);
-    syslog(LOG_INFO, "Task Manager started");
-
-    while ((read = getline(&line, &len, fp)) != -1)
-    {
+    while ((read = getline(&line, &len, fp)) != -1){
         if (line[0] == '#')
             continue;
-        char ** res  = NULL;
+        char ** tokens  = NULL;
         char * p    = strtok (line, " ");
-        int n_spaces = 0, i;
+        int size = 0;
 
-        while (p)
-        {
-          res = realloc (res, sizeof (char*) * ++n_spaces);
-          if (res == NULL)
-          {
-              syslog(LOG_ERR, "Cannot allocate memory");
-              exit (-1);
-          }
-          res[n_spaces-1] = p;
-          p = strtok (NULL, " ");
+        while (p){
+            tokens = realloc (tokens, sizeof (char*) * ++size);
+            if (tokens == NULL){
+                syslog(LOG_ERR, "Cannot allocate memory");
+                exit (-1);
+            }
+            tokens[size-1] = p;
+            p = strtok (NULL, " ");
         }
-        res = realloc (res, sizeof (char*) * (n_spaces+1));
-        res[n_spaces] = 0;
+        tokens = realloc (tokens, sizeof (char*) * (size+1));
+        tokens[size] = 0;
 
-        char ** argv = malloc(sizeof (char*) * (n_spaces-2));
-        for (i=0; i<n_spaces-2; i++)
-            argv[i] = res[i];
+        start_task(tokens, size);
 
-        if (strcmp(res[n_spaces-1], "Once\n") == 0)
-        {
-            execute_once(argv);
-        }
-        else if (strcmp(res[n_spaces-1], "Repeat\n") == 0)
-        {
-            execute_repeat(argv);
-        }
-        else
-        {
-            syslog(LOG_ALERT, "Wrong type in config file.");
-        }
-
-        free(argv*);
-        free (res);
+        free(tokens);
     }
 
+    print_list(head);
     fclose(fp);
     if (line)
-      free(line);
+        free(line);
     return 0;
 }
 
-void execute_once(char **argv)
-{
-    syslog(LOG_INFO, "New Process Once: %s", *argv);
-    pid_t pid;
-    switch(pid=fork())
-    {
-    case -1:
-        syslog(LOG_ERR, "Cannot fork.");
-        return;
-    case 0:
-    //CHILD
-        return;
+void start_task(char **tokens, int size){
+    int i;
+    char ** argv = malloc(sizeof (char*) * (size));
+    for (i = 0; i < size-1; i++)
+        argv[i] = tokens[i];
 
-    default:
-    //PARENT
-        return;
+    if (strcmp(tokens[size-1], "Once\n") == 0)
+        execute_once(argv);
+    else if (strcmp(tokens[size-1], "Repeat\n") == 0)
+        execute_repeat(argv);
+    else
+        syslog(LOG_ALERT, "Wrong type in config file.");
+    free(argv);
+}
+
+void execute_once(char **argv){
+    pid_t pid;
+
+    if ((pid = fork()) < 0){
+         syslog(LOG_ERR, "Forking child process failed");
+         return;
+    }
+    else if (pid == 0){
+        pid_t task_pid = fork();
+        push(task_pid);
+        int status;
+        if (task_pid==0){
+            syslog(LOG_INFO, "! %s started", *argv);
+            execvp(*argv, argv);
+            exit(0);
+        }
+        else{
+            waitpid(task_pid, NULL, 0);
+            syslog(LOG_INFO, "# %s completed", *argv);
+            char *file = (char*)malloc(sizeof(char)*40);
+            sprintf(file, "/tmp/%s.pid", *argv);
+            remove(file);
+            remove_list(pid);
+            remove_list(task_pid);
+            exit(0);
+        }
+    }
+    else{
+        push(pid);
+        FILE *fs;
+        char *file = (char*)malloc(sizeof(char)*40);
+        sprintf(file, "/tmp/%s.pid", *argv);
+        fs = fopen(file, "a");
+        fprintf(fs, "%d\n", pid);
+        fclose(fs);
     }
 }
 
 void execute_repeat(char **argv)
 {
-    //while (1)
-    //{
-        syslog(LOG_INFO, "New Process Repeat: %s", *argv);
-   // }
+
 }
 
-int create_daemon()//int argc, char *argv)
-{
-    unsigned int fd;
-    struct rlimit flim;
-
-    if (getppid() != 1)
-    {
-        signal(SIGTTOU, SIG_IGN);
-        signal(SIGTSTP, SIG_IGN);
-        signal(SIGTTIN, SIG_IGN);
-        if (fork() != 0)
-            exit(0);
-        setsid();
+void remove_list(int val){
+   if (head == NULL)
+        return;
+    if (head->val == val){
+        head = head->next;
+        return;
     }
+    node_t *ptr = head->next;
+    node_t *prev = head;
 
-    getrlimit(RLIMIT_NOFILE, &flim);
-    for (fd=0; fd < flim.rlim_max; fd++)
-        close(fd);
-    chdir("/");
-    openlog("Скелет демона", LOG_PID | LOG_CONS, LOG_DAEMON);
-    syslog(LOG_INFO, "Демон начал работу...");
-    closelog();
-
-    return 0;
+    while(ptr != NULL){
+        if (ptr->val == val)
+        {
+            prev->next = ptr->next;
+            break;
+        }
+        prev = ptr;
+        ptr = ptr->next;
+    }
 }
-//        char *command = malloc( sizeof(*command) * 100);
-//        strcpy(command, res[0]);
-//        for (i = 1; i < (n_spaces-1); ++i)
-//        {
-//            strcat(command, " ");
-//            strcat(command, res[i]);
-//        }
+
+void push(int val){
+    if (head == NULL){
+        node_t *ptr = (node_t*)malloc(sizeof(node_t));
+        ptr->val = val;
+        ptr->next = NULL;
+        head = curr = ptr;
+        return;
+    }
+    node_t *ptr = malloc(sizeof(node_t));
+    ptr->val = val;
+    ptr->next = NULL;
+
+    curr-> next = ptr;
+    curr = ptr;
+}
+
+void print_list() {
+    node_t * current = head;
+
+    while (current != NULL) {
+        printf("%d\n", current->val);
+        current = current->next;
+    }
+}
+
+//int create_daemon()//int argc, char *argv)
+//{
+//    unsigned int fd;
+//    struct rlimit flim;
+//
+//    if (getppid() != 1){
+//        signal(SIGTTOU, SIG_IGN);
+//        signal(SIGTSTP, SIG_IGN);
+//        signal(SIGTTIN, SIG_IGN);
+//        if (fork() != 0)
+//            exit(0);
+//        setsid();
+//    }
+//
+//    getrlimit(RLIMIT_NOFILE, &flim);
+//    for (fd=0; fd < flim.rlim_max; fd++)
+//        close(fd);
+//    chdir("/");
+//    openlog("Скелет демона", LOG_PID | LOG_CONS, LOG_DAEMON);
+//    syslog(LOG_INFO, "Демон начал работу...");
+//    closelog();
+//
+//    return 0;
+//}
