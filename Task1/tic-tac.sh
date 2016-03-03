@@ -90,9 +90,31 @@ function check_win(){
 function check_param(){
 	flag=0
 	if [[ "${FIELD[0]}" -eq $1 && "${FIELD[1]}" -eq $1 && "${FIELD[2]}" -eq $1 ]]; then
-	
-	
-	if [[ $flag -eq 1]] then
+		flag=1
+	fi
+	if [[ "${FIELD[3]}" -eq $1 && "${FIELD[4]}" -eq $1 && "${FIELD[5]}" -eq $1 ]]; then
+		flag=1
+	fi
+	if [[ "${FIELD[6]}" -eq $1 && "${FIELD[7]}" -eq $1 && "${FIELD[8]}" -eq $1 ]]; then
+		flag=1
+	fi
+	if [[ "${FIELD[0]}" -eq $1 && "${FIELD[3]}" -eq $1 && "${FIELD[6]}" -eq $1 ]]; then
+		flag=1
+	fi
+	if [[ "${FIELD[1]}" -eq $1 && "${FIELD[4]}" -eq $1 && "${FIELD[7]}" -eq $1 ]]; then
+		flag=1
+	fi
+	if [[ "${FIELD[2]}" -eq $1 && "${FIELD[5]}" -eq $1 && "${FIELD[8]}" -eq $1 ]]; then
+		flag=1
+	fi
+	if [[ "${FIELD[0]}" -eq $1 && "${FIELD[4]}" -eq $1 && "${FIELD[8]}" -eq $1 ]]; then
+		flag=1
+	fi
+	if [[ "${FIELD[2]}" -eq $1 && "${FIELD[4]}" -eq $1 && "${FIELD[6]}" -eq $1 ]]; then
+		flag=1
+	fi
+	if [[ $flag -eq 1 ]] 
+	then	
 		tput cup 12 5
 		tput setaf 5
 		echo "Os win!!!"	
