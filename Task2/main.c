@@ -7,7 +7,7 @@
 #include <sys/param.h>
 #include <sys/resource.h>
 #include <unistd.h>
-#include<sys/wait.h>
+#include <sys/wait.h>
 
 typedef struct node {
     int val;
@@ -17,8 +17,8 @@ typedef struct node {
 node_t *head = NULL;
 node_t *curr = NULL;
 
-void execute_once(char **argv);
-void execute_repeat(char **argv);
+void execute_once(char **argv, int size);
+void execute_repeat(char **argv, int size);
 void push(int val);
 void print_list();
 void remove_list(int val);
@@ -27,6 +27,20 @@ void rewrite_pid_file(char *name, pid_t pid);
 void start_task(char **tokens, int size);
 void try_execute(char **argv);
 void write_pid(char *name, pid_t pid);
+
+int main2()
+{
+    int size = 5;
+    char *argv[]= {"ping", "8.8.8.8", "-c", "4", "once"};
+    argv[size-1]=NULL;
+    //free(argv[size-1]);
+
+    if (execvp(*argv, argv)<0){
+        printf("Failed");
+    }
+
+    return 0;
+}
 
 int main(){
     unsigned int fd;
@@ -96,20 +110,21 @@ void start_processes(){
 
 void start_task(char **tokens, int size){
     int i;
-    char ** argv = malloc(sizeof (char*) * (size));
-    for (i = 0; i < size-1; i++)
-        argv[i] = tokens[i];
+//char ** argv = malloc(sizeof (char*) * (size-1));
+  //  for (i = 0; i < size-1; i++)
+    //    argv[i] = tokens[i];
+
 
     if (strcmp(tokens[size-1], "Once\n") == 0)
-        execute_once(argv);
+        execute_once(tokens, size);
     else if (strcmp(tokens[size-1], "Repeat\n") == 0)
-        execute_repeat(argv);
+        execute_repeat(tokens, size);
     else
-        syslog(LOG_ALERT, "Wrong type in config file.");
-    free(argv);
+        syslog(LOG_ALERT, "Wrong type in config file."); 
 }
 
-void execute_once(char **argv){
+void execute_once(char **argv, int size){
+    argv[size-1]=NULL;
     pid_t pid;
     if ((pid = fork()) < 0){
          syslog(LOG_ERR, "Forking child process failed");
@@ -141,10 +156,8 @@ void execute_once(char **argv){
     }
 }
 
-
-
-
-void execute_repeat(char **argv){
+void execute_repeat(char **argv, int size){
+    argv[size-1]==NULL;
     pid_t pid;
     if ((pid = fork()) < 0){
          syslog(LOG_ERR, "Forking child process failed");
@@ -167,7 +180,7 @@ void execute_repeat(char **argv){
                 rewrite_pid_file(*argv, getpid());
                 remove_list(task_pid);
             }
-            sleep(10);
+            sleep(1);
         }
     }
     else{
@@ -194,13 +207,14 @@ void write_pid(char *name, pid_t pid){
 
 void try_execute(char **argv){
     if (execvp(*argv, argv) < 0){
-        syslog(LOG_ERR, "*** Failed execute!");
+        //syslog(LOG_ERR, "*** Failed execute %s %s %s %s!", *argv, argv[1], a);
+
         exit(1);
     }
 }
 
 void remove_list(int val){
-   if (head == NULL)
+   if (!head)
         return;
     if (head->val == val){
         head = head->next;
@@ -209,7 +223,7 @@ void remove_list(int val){
     node_t *ptr = head->next;
     node_t *prev = head;
 
-    while(ptr != NULL){
+    while(ptr){
         if (ptr->val == val)
         {
             prev->next = ptr->next;
