@@ -9,7 +9,7 @@
 #include <unistd.h>
 #include <sys/wait.h>
 
-#define MAX_ATTEMPTS 50;
+#define MAX_ATTEMPTS 50
 
 typedef struct node {
     int val;
@@ -209,12 +209,18 @@ void write_pid(char *name, pid_t pid){
 void try_execute(char **argv){
     int count;
     while(1){
+        if (count == MAX_ATTEMPTS){
+            count = 0;
+            syslog(LOG_ERR, "Process %s is broken. Wait for an hour", *argv);
+            sleep(60*60);
+        }
         if (execvp(*argv, argv) < 0){
             syslog(LOG_ERR, "*** Failed execute %s!", *argv);
             count++;
             continue;
         }
-        if (count == MAX_ATTEMPTS)
+        return;
+
     }
 }
 
