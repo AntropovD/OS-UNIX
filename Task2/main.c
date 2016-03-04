@@ -31,21 +31,6 @@ void start_task(char **tokens, int size);
 void try_execute(char **argv);
 void write_pid(char *name, pid_t pid);
 
-/*
-int main2()
-{
-    int size = 5;
-    char *argv[]= {"ping", "8.8.8.8", "-c", "4", "once"};
-    argv[size-1]=NULL;
-    //free(argv[size-1]);
-
-    if (execvp(*argv, argv)<0){
-        printf("Failed");
-    }
-
-    return 0;
-}*/
-
 int main(){
     unsigned int fd;
     struct rlimit flim;
