@@ -9,6 +9,8 @@
 #include <unistd.h>
 #include <sys/wait.h>
 
+#define MAX_ATTEMPTS 50;
+
 typedef struct node {
     int val;
     struct node * next;
@@ -24,10 +26,12 @@ void print_list();
 void remove_list(int val);
 void read_config();
 void rewrite_pid_file(char *name, pid_t pid);
+void signal_callback_handler(int signum);
 void start_task(char **tokens, int size);
 void try_execute(char **argv);
 void write_pid(char *name, pid_t pid);
 
+/*
 int main2()
 {
     int size = 5;
@@ -40,7 +44,7 @@ int main2()
     }
 
     return 0;
-}
+}*/
 
 int main(){
     unsigned int fd;
@@ -61,6 +65,8 @@ int main(){
     chdir("/");
     openlog("Task Manager by Dantre", LOG_PID | LOG_CONS, LOG_DAEMON);
     syslog(LOG_INFO, "Task Manager started with %d pid", getpid());
+
+    signal(SIGHUP, signal_callback_handler);
 
     start_processes();
     return 0;
@@ -109,12 +115,6 @@ void start_processes(){
 }
 
 void start_task(char **tokens, int size){
-    int i;
-//char ** argv = malloc(sizeof (char*) * (size-1));
-  //  for (i = 0; i < size-1; i++)
-    //    argv[i] = tokens[i];
-
-
     if (strcmp(tokens[size-1], "Once\n") == 0)
         execute_once(tokens, size);
     else if (strcmp(tokens[size-1], "Repeat\n") == 0)
@@ -140,6 +140,7 @@ void execute_once(char **argv, int size){
         else{            
             push(task_pid);
             write_pid(*argv, task_pid);
+            syslog(LOG_INFO, "waiting %s started", *argv);
             waitpid(task_pid, NULL, 0);
             syslog(LOG_INFO, "# %s completed", *argv);
             char *file = (char*)malloc(sizeof(char)*40);
@@ -180,7 +181,7 @@ void execute_repeat(char **argv, int size){
                 rewrite_pid_file(*argv, getpid());
                 remove_list(task_pid);
             }
-            sleep(1);
+            sleep(10);
         }
     }
     else{
@@ -206,10 +207,14 @@ void write_pid(char *name, pid_t pid){
 }
 
 void try_execute(char **argv){
-    if (execvp(*argv, argv) < 0){
-        //syslog(LOG_ERR, "*** Failed execute %s %s %s %s!", *argv, argv[1], a);
-
-        exit(1);
+    int count;
+    while(1){
+        if (execvp(*argv, argv) < 0){
+            syslog(LOG_ERR, "*** Failed execute %s!", *argv);
+            count++;
+            continue;
+        }
+        if (count == MAX_ATTEMPTS)
     }
 }
 
@@ -257,4 +262,20 @@ void print_list(){
         printf("%d\n", current->val);
         current = current->next;
     }
+}
+
+void signal_callback_handler(int signum)
+{
+    syslog(LOG_INFO, "SIGNAL HUP hanlded %d", signum);
+
+    node_t * current = head;
+    while (current != NULL){
+        node_t *ptr = current;
+        kill(ptr->val, SIGKILL);
+        current = current->next;
+        free(ptr);
+    }
+    start_processes();
+    head = NULL;
+    curr = NULL;
 }
