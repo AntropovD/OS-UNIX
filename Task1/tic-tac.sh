@@ -116,7 +116,11 @@ function check_param(){
 	then	
 		tput cup 12 5
 		tput setaf 5
-		echo "Os win!!!"	
+		if [[ $1 -eq 1 ]]; then
+			echo "Os win!!!"	
+		else
+			echo "Xs win!!!"	
+		fi		
 		read -p "Press any key to exit."
 		ctrl_z
 	fi	
@@ -146,18 +150,19 @@ else
 	TURN=1	
 fi
 
+
+print_game_FIELD
 while true; do 	
-	print_game_FIELD
-	
 	if [[ $TURN -eq 1 ]]; then
-		stty echo
+		read -t 0.1 -N 255	
+		stty echo		
 		tput cup 10 3
 		tput setaf 2		
 		read -p "Enter your turn:         " -n 1 arg
 		tput cup 11 3
 		echo "                         "
 		
-		if ! [[ "$arg" =~ [0-9] ]]
+		if ! [[ "$arg" =~ [1-9] ]]
 		then	
 			tput clear
 			tput cup 11 3
@@ -190,8 +195,7 @@ while true; do
 			print_game_FIELD;
 			check_win
 			TURN=1
-		else					
-			continue
-		fi	
+		fi			
+		print_game_FIELD
 	fi
 done
