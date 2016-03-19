@@ -1,12 +1,15 @@
 #!/bin/bash
 
-count=$RANDOM
-let "count %= 100"
-echo $count
+dd if=/dev/zero of=sparce.img bs=1 count=0 seek=64M &>/dev/null 
+mkfs.reiserfs -f -q sparce.img
+mkdir folder
+sudo mount -o loop sparce.img folder
 
-for i in `seq 1 $count`
+for i in {1..1000}
 do
-	dd if=/dev/zero of=sparce.img bs=1 count=0 seek=30M > /dev/null 2>&1
-	cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1 > sparce.img
+	touch folder/tmp$i		
+	head -c 1000 /dev/urandom >folder/tmp$i
 done
 
+sudo umount folder
+rmdir folder
