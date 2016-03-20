@@ -1,6 +1,6 @@
 #!/bin/bash
 
-dd if=/dev/zero of=sparce.img bs=1 count=0 seek=64M &>/dev/null 
+dd if=/dev/zero of=sparce.img bs=1 count=0 seek=64M
 mkfs.reiserfs -f -q sparce.img
 mkdir folder
 sudo mount -o loop sparce.img folder
