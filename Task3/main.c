@@ -20,7 +20,7 @@ int main(int argc, char ** argv) {
 		char *ptr = buff;
 		for (i=0; i<n; i++) {
 			if (buff[i] == 0) {
-				lseek(output, 1, SEEK_CUR);
+				lseek(output, 1, SEEK_END);
 			}
 			else {
 				write(output, ptr, 1);							
