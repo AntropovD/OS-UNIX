@@ -1,7 +1,10 @@
+#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <unistd.h>
+
 
 
 
@@ -37,7 +40,7 @@ int main(int argc, char ** argv) {
     }
 
     char *lckFile = concatLckStr(file);
-    createLckFile(lckFile, lockType.Read);
+    createLckFile(lckFile, Read);
 
 
     free(lckFile);
@@ -60,12 +63,14 @@ int doesFileExist(char *filename) {
 void createLckFile(char *name, lockType type) {
     int file;
     file = open(name, O_WRONLY | O_CREAT | O_TRUNC, 0664);
-    char *buff = malloc(sizeof(char)*256);
-    strcpy(buff, name);
-//    if (type == lockType.Read)
-//        strcpy(buff, " read");
-//    else if (type == lockType.Write)
-//        strcpy(buff, " write");
-    write(file, buff);
-    free(buff);
+    char *buff = calloc(256, sizeof(char));
+    sprintf(buff, "%ld", (long)getpid());
+    printf("%s", buff);
+    if (type == Read)
+        strcat(buff, " read");
+    else if (type == Write)
+        strcat(buff, " write");
+    write(file, buff, strlen(buff));
+    close(file);
+   free(buff);
 }
