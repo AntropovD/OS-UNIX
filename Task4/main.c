@@ -6,10 +6,6 @@
 
 #include "lock.h"
 
-#define BUFFER_SIZE 40
-#define LINE_SIZE 40
-
-char *get_next_line_from_buf(char *buf, int *i, int n);
 void update_password_file(char *filename, char *username, char *password);
 
 int main(int argc, char ** argv)
@@ -31,75 +27,53 @@ int main(int argc, char ** argv)
     return 0;
 }
 
-int line_max_size = LINE_SIZE;
-int count = 0;
-char *line = NULL;
-
-char *get_next_line_from_buf(char *buf, int *index, int n) {
-    int i;
-    for (i = *index; i < n; i++) {
-         if (buf[i] == '\n') {
-             char *lineult = malloc(sizeof(char) * (count + 1));
-             memset(lineult, 0, count + 1);
-             strncpy(lineult, line, count);
-             count = 0;
-             *index += i+1;
-             return lineult;
-         }
-         if (count == line_max_size) {
-             line_max_size += LINE_SIZE;
-             line = realloc(line, line_max_size);
-         }
-         line[count] = buf[i];
-         count++;
-    }
-    *index += i;
-    return NULL;
-}
-
 void update_password_file(char *filename, char *username, char *password) {
-    bool over = false;
-    char *buf = (char *)malloc(sizeof(char) * line_max_size);
-    int n, fd;
-    off_t position = 0;
+    char *line = NULL;
+    size_t len = 0;
+    ssize_t read;
 
-    line = (char *)malloc(sizeof(char) * line_max_size);
+    long position = 0;
 
-    while (!over) {
-       fd = open(filename, O_RDONLY);
-       lock(fd);
-       lseek(fd, position, SEEK_CUR);
-       n = read(fd, buf, BUFFER_SIZE);
-       position += n;
+    while (1) {
+     //  lock(1);
+        FILE *fp = fopen(filename, "r");
+        fseek(fp, position, SEEK_SET);
+        read = getline(&line, &len, fp);
+        fclose(fp);
+       // unlock(1);
 
-       char *line;
-       int index = 0;
-       while (1) {
-           line = get_next_line_from_buf(buf, &index, n);
-           if (line == NULL)
-               break;
+        char *tmp_line = (char *)malloc(sizeof(char) * read);
+        strncpy(tmp_line, line, read);
+        char *old_username = strtok(line, " ");
+        if (strcmp(username, old_username) == 0) {
+//            lock(1);
+//            FILE *rp = fopen(filename, "r");
+//            lock(2);
+//            FILE *wp = fopen(filename, "w");
 
-           int username_length = strchr(line, ' ') - line;
-           char *substr = (char *)malloc(sizeof(char) * username_length);
-           strncpy(substr, line, username_length);
-           if (strcmp(substr, username) == 0) {
-               printf("FOUND");
-               int wd = open(filename, O_WRONLY);
-               lock(wd);
-               int j = i - strlen(line);
+            printf("%ld", position);
+//            int i, c;
 
-               lseek(fd, i - strlen(line), SEEK_CUR);
+//            for (i = 0; i < position; i++) {
+//                c = fgetc(rp);
+//                fputc(c, wp);
+//            }
+//            for (i = 0; i < read; i++) {
+//                fputc(line[i], wp);
+//            }
+//            fseek(wp, read, SEEK_CUR);
+//            while ((c=fgetc(rp)) != EOF) {
+//                fputc(c, wp);
+//            }
+//            close(rp);
+//            close(fp);
+        }
 
-           }
-           printf("%s\n", line);
-           free(substr);
-       }
-       if (n <= 0)
-           over = true;
-       close(fd);
+        position += read;
+
+        if (read == -1)
+            break;
     }
-
-    free(buf);
     free(line);
 }
 
