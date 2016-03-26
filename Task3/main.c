@@ -7,8 +7,8 @@
 #define BUF_SIZE 1024
 
 
-int main(int argc, char ** argv) {
-
+int main(int argc, char ** argv) 
+{
     if (argc != 3) {
         printf("Gzip addition for sparced files\n");
         printf("Usage: %s inputFile outputFile\n", argv[0]);

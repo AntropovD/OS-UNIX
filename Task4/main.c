@@ -1,76 +1,98 @@
-#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/stat.h>
 #include <unistd.h>
+#include <fcntl.h>
 
+#include "lock.h"
 
+#define BUFFER_SIZE 40
+#define LINE_SIZE 40
 
+char *get_next_line_from_buf(char *buf, int *i, int n);
+void update_password_file(char *filename, char *username, char *password);
 
-enum lockType{ Read, Write };
-typedef enum lockType lockType;
-
-char * concatLckStr(char * source);
-
-int doesFileExist(char *filename);
-
-void createLckFile(char *name, lockType type);
-
-
-int main(int argc, char ** argv) {
-
+int main(int argc, char ** argv)
+{
     if (argc != 4) {
         printf("Change username and password in passwd file with own file blocking system\n");
         printf("Usage: %s filename username new_password\n", argv[0]);
         return 1;
     }
-    char *file = argv[1];
-    char *usr = argv[2];
-    char *pwd = argv[3];
+    char *filename = argv[1];
+    char *username = argv[2];
+    char *password = argv[3];
 
-    if (!doesFileExist(file)) {
-        printf("File not found.\n");
+    if (!check_file_exists_and_not_locked(filename))
         return 1;
-    }
 
-    if (strlen(file) > 4 && strcmp(file + (strlen(file)-4), ".lck")==0) {
-        printf("File is already locked.\n");
-        return 1;
-    }
+    update_password_file(filename, username, password);
 
-    char *lckFile = concatLckStr(file);
-    createLckFile(lckFile, Read);
-
-
-    free(lckFile);
     return 0;
 }
 
-char * concatLckStr(char * source) {
-    char *lckStr = malloc(sizeof(char)*256);
-    strcpy(lckStr, source);
-    strcat(lckStr, ".lck");
-    return lckStr;
+int line_max_size = LINE_SIZE;
+int count = 0;
+char *line = NULL;
+
+char *get_next_line_from_buf(char *buf, int *i, int n) {
+    int j;
+    for (j = *i; j < n; j++) {
+         if (buf[j] == '\n') {
+             char *lineult = malloc(sizeof(char) * (count + 1));
+             memset(lineult, 0, count + 1);
+             strncpy(lineult, line, count);
+             count = 0;
+             *i += j+1;
+             return lineult;
+         }
+         if (count == line_max_size) {
+             line_max_size += LINE_SIZE;
+             line = realloc(line, line_max_size);
+         }
+         line[count] = buf[j];
+         count++;
+    }
+    *i += j;
+    return NULL;
 }
 
-int doesFileExist(char *filename) {
-    struct stat st;
-    int result = stat(filename, &st);
-    return result == 0;
+void update_password_file(char *filename, char *username, char *password) {
+    bool over = false;
+    char *buf = (char *)malloc(sizeof(char) * line_max_size);
+    int n, fd;
+    off_t position = 0;
+
+    line = (char *)malloc(sizeof(char) * line_max_size);
+
+    while (!over) {
+       fd = open(filename, O_RDONLY);
+       lock(fd);
+       lseek(fd, position, SEEK_CUR);
+       n = read(fd, buf, BUFFER_SIZE);
+       position += n;
+
+       char *line;
+       int i = 0;
+       while (1) {
+           line = get_next_line_from_buf(buf, &i, n);
+           if (line == NULL)
+               break;
+
+           int username_length = strchr(line, ' ') - line;
+           char *substr = (char *)malloc(sizeof(char) * username_length);
+           strncpy(substr, line, username_length);
+           if (strcmp(substr, username) == 0)
+               printf("FOUND");
+           printf("%s\n", line);
+           free(substr);
+       }
+       if (n <= 0)
+           over = true;
+       close(fd);
+    }
+
+    free(buf);
+    free(line);
 }
 
-void createLckFile(char *name, lockType type) {
-    int file;
-    file = open(name, O_WRONLY | O_CREAT | O_TRUNC, 0664);
-    char *buff = calloc(256, sizeof(char));
-    sprintf(buff, "%ld", (long)getpid());
-    printf("%s", buff);
-    if (type == Read)
-        strcat(buff, " read");
-    else if (type == Write)
-        strcat(buff, " write");
-    write(file, buff, strlen(buff));
-    close(file);
-   free(buff);
-}

@@ -3,5 +3,9 @@ CONFIG += console
 CONFIG -= app_bundle
 CONFIG -= qt
 
-SOURCES += main.c
+SOURCES += main.c \
+    lock.c
+
+HEADERS += \
+    lock.h
 
