@@ -35,25 +35,25 @@ int line_max_size = LINE_SIZE;
 int count = 0;
 char *line = NULL;
 
-char *get_next_line_from_buf(char *buf, int *i, int n) {
-    int j;
-    for (j = *i; j < n; j++) {
-         if (buf[j] == '\n') {
+char *get_next_line_from_buf(char *buf, int *index, int n) {
+    int i;
+    for (i = *index; i < n; i++) {
+         if (buf[i] == '\n') {
              char *lineult = malloc(sizeof(char) * (count + 1));
              memset(lineult, 0, count + 1);
              strncpy(lineult, line, count);
              count = 0;
-             *i += j+1;
+             *index += i+1;
              return lineult;
          }
          if (count == line_max_size) {
              line_max_size += LINE_SIZE;
              line = realloc(line, line_max_size);
          }
-         line[count] = buf[j];
+         line[count] = buf[i];
          count++;
     }
-    *i += j;
+    *index += i;
     return NULL;
 }
 
@@ -73,17 +73,24 @@ void update_password_file(char *filename, char *username, char *password) {
        position += n;
 
        char *line;
-       int i = 0;
+       int index = 0;
        while (1) {
-           line = get_next_line_from_buf(buf, &i, n);
+           line = get_next_line_from_buf(buf, &index, n);
            if (line == NULL)
                break;
 
            int username_length = strchr(line, ' ') - line;
            char *substr = (char *)malloc(sizeof(char) * username_length);
            strncpy(substr, line, username_length);
-           if (strcmp(substr, username) == 0)
+           if (strcmp(substr, username) == 0) {
                printf("FOUND");
+               int wd = open(filename, O_WRONLY);
+               lock(wd);
+               int j = i - strlen(line);
+
+               lseek(fd, i - strlen(line), SEEK_CUR);
+
+           }
            printf("%s\n", line);
            free(substr);
        }
