@@ -19,7 +19,7 @@ int main(int argc, char ** argv)
     char *username = argv[2];
     char *password = argv[3];
 
-    if (!check_file_exists_and_not_locked(filename))
+    if (!is_file_exist(filename))
         return 1;
 
     update_password_file(filename, username, password);
@@ -33,47 +33,56 @@ void update_password_file(char *filename, char *username, char *password) {
     ssize_t read;
 
     long position = 0;
-
-    while (1) {
-     //  lock(1);
-        FILE *fp = fopen(filename, "r");
-        fseek(fp, position, SEEK_SET);
-        read = getline(&line, &len, fp);
-        fclose(fp);
-       // unlock(1);
+    printf("%ld", (long)getpid());
+    while (1) {               
+        int fd;
+        lock(filename, &fd,  READ);
+        FILE *fr = fdopen(fd, "r");
+        fseek(fr, position, SEEK_SET);
+        read = getline(&line, &len, fr);
+        if (read == -1)
+            break;
+        printf("New read portion\n");
+        //sleep(1);
+        fclose(fr);
+        unlock(filename, fd, READ);
 
         char *tmp_line = (char *)malloc(sizeof(char) * read);
         strncpy(tmp_line, line, read);
         char *old_username = strtok(line, " ");
         if (strcmp(username, old_username) == 0) {
-//            lock(1);
-//            FILE *rp = fopen(filename, "r");
-//            lock(2);
-//            FILE *wp = fopen(filename, "w");
+            int tmp;
+            lock(filename, &tmp, READ);
+            FILE *rp = fopen(filename, "r");
+            lock(".tmp", &tmp, WRITE);
+            FILE *wp = fopen(".tmp", "w");
+            int i, c;
+            for (i = 0; i < position; i++) {
+                c = fgetc(rp);
+                fputc(c, wp);
+            }
+            fprintf(wp, "%s %s\n", username, password);
+            fseek(rp, read, SEEK_CUR);
+            while ((c=fgetc(rp)) != EOF) {
+                fputc(c, wp);
+            }
 
-            printf("%ld", position);
-//            int i, c;
+            fclose(rp);
+            sleep(1);
+            fclose(wp);
+            sleep(1);
+            unlock(filename, tmp, READ);
 
-//            for (i = 0; i < position; i++) {
-//                c = fgetc(rp);
-//                fputc(c, wp);
-//            }
-//            for (i = 0; i < read; i++) {
-//                fputc(line[i], wp);
-//            }
-//            fseek(wp, read, SEEK_CUR);
-//            while ((c=fgetc(rp)) != EOF) {
-//                fputc(c, wp);
-//            }
-//            close(rp);
-//            close(fp);
+            lock(filename, &tmp, WRITE);
+            remove(filename);
+            sleep(1);
+            rename(".tmp", filename);
+            sleep(1);
+            unlock(filename, tmp,  WRITE);
+            sleep(1);
+            unlock(".tmp", tmp, WRITE);
         }
-
-        position += read;
-
-        if (read == -1)
-            break;
+        position += read;        
     }
     free(line);
 }
-
