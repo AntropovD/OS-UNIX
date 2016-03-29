@@ -33,17 +33,20 @@ void update_password_file(char *filename, char *username, char *password) {
     ssize_t read;
 
     long position = 0;
-    printf("%ld", (long)getpid());
+    printf("DEBUG: Pid process %ld\n", (long)getpid());
     while (1) {               
         int fd;
         lock(filename, &fd,  READ);
         FILE *fr = fdopen(fd, "r");
         fseek(fr, position, SEEK_SET);
         read = getline(&line, &len, fr);
-        if (read == -1)
+        if (read == -1) {
+            fclose(fr);
+            unlock(filename, fd, READ);
             break;
-        printf("New read portion\n");
-        //sleep(1);
+        }
+        printf("DEBUG: +\n");
+        sleep(1);
         fclose(fr);
         unlock(filename, fd, READ);
 
@@ -51,10 +54,11 @@ void update_password_file(char *filename, char *username, char *password) {
         strncpy(tmp_line, line, read);
         char *old_username = strtok(line, " ");
         if (strcmp(username, old_username) == 0) {
+            printf("DEBUG: Start modifiyng\n");
             int tmp;
-            lock(filename, &tmp, READ);
-            FILE *rp = fopen(filename, "r");
+            lock(filename, &tmp, WRITE);
             lock(".tmp", &tmp, WRITE);
+            FILE *rp = fopen(filename, "r");            
             FILE *wp = fopen(".tmp", "w");
             int i, c;
             for (i = 0; i < position; i++) {
@@ -66,21 +70,15 @@ void update_password_file(char *filename, char *username, char *password) {
             while ((c=fgetc(rp)) != EOF) {
                 fputc(c, wp);
             }
-
             fclose(rp);
-            sleep(1);
             fclose(wp);
-            sleep(1);
-            unlock(filename, tmp, READ);
-
-            lock(filename, &tmp, WRITE);
-            remove(filename);
-            sleep(1);
-            rename(".tmp", filename);
-            sleep(1);
+            sleep(10);
+            printf("DEBUG: Rewrite starts\n");
+            remove(filename);            
+            rename(".tmp", filename);            
             unlock(filename, tmp,  WRITE);
-            sleep(1);
             unlock(".tmp", tmp, WRITE);
+            printf("DEBUG: Finish modifiyng\n");
         }
         position += read;        
     }
