@@ -2,6 +2,9 @@
 #define LOCK_H
 #include <stdbool.h>
 
+#define DEBUG true
+#define SLEEP true
+
 enum lock_type {
     READ,
     WRITE

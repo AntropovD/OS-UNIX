@@ -13,34 +13,25 @@ void lock(char *filename, int *fd, enum lock_type type)
     char *lck_1st_level = concat_lck_extension(filename);
     char *lck_2nd_level = concat_lck_extension(lck_1st_level);
 
+    // zero level
     if (!is_file_exist(lck_1st_level) && !is_file_exist(lck_2nd_level)) {
-        *fd = get_descriptor_if_not_locked(filename, type);
-        free(lck_1st_level);
-        free(lck_2nd_level);
-        return;
+        *fd = get_descriptor_if_not_locked(filename, type);     
     }
-
     // 1st level exists but second not
-    if (is_file_exist(lck_1st_level) && !is_file_exist(lck_2nd_level)) {
-        *fd = get_descriptor_1st_level(filename, type);
-        free(lck_1st_level);
-        free(lck_2nd_level);
-        return;
+    else if (is_file_exist(lck_1st_level) && !is_file_exist(lck_2nd_level)) {
+        *fd = get_descriptor_1st_level(filename, type);        
     }
     // 1st level exists and 2nd too
-    if (is_file_exist(lck_1st_level) && is_file_exist(lck_2nd_level)) {
+    else if (is_file_exist(lck_1st_level) && is_file_exist(lck_2nd_level)) {
         *fd = get_descriptor_2nd_level(filename, type);
-        free(lck_1st_level);
-        free(lck_2nd_level);
-        return;
     }    
-
-    if (!is_file_exist(lck_1st_level) && is_file_exist(lck_2nd_level)) {
+    else if (!is_file_exist(lck_1st_level) && is_file_exist(lck_2nd_level)) {
         printf("ERROR: Created 2nd level block without 1st level!\n");
-        free(lck_1st_level);
-        free(lck_2nd_level);
         exit(2);
-    }
+    }    
+    free(lck_1st_level);
+    free(lck_2nd_level);
+    return;
 }
 
 int get_descriptor_if_not_locked(char *filename, enum lock_type type)
@@ -50,7 +41,8 @@ int get_descriptor_if_not_locked(char *filename, enum lock_type type)
 
     create_lck_file(lck_2nd_level, WRITE);
     create_lck_file(lck_1st_level, type);
-    printf("DEBUG: Lock on file %s installed %d level 0\n", filename, (int)type);
+    if (DEBUG) printf("DEBUG: Lock on file %s installed %d level 0\n",
+               filename, (int)type);
     unlink(lck_2nd_level);
 
     free(lck_1st_level);
@@ -68,7 +60,8 @@ int get_descriptor_1st_level(char *filename, enum lock_type type)
         sleep(1);
     }
     create_lck_file(lck_1st_level, type);
-    printf("DEBUG: Lock on file %s installed %d level 1\n", filename, (int)type);
+    if (DEBUG) printf("DEBUG: Lock on file %s installed %d level 1\n",
+           filename, (int)type);
     unlink(lck_2nd_level);
 
     free(lck_1st_level);
@@ -89,7 +82,8 @@ int get_descriptor_2nd_level(char *filename, enum lock_type type)
         sleep(1);
     }
     create_lck_file(lck_1st_level, type);
-    printf("DEBUG: Lock on file %s installed %d way 3\n", filename, (int)type);
+    if (DEBUG) printf("DEBUG: Lock on file %s installed %d way 3\n",
+           filename, (int)type);
     unlink(lck_2nd_level);
 
     free(lck_1st_level);
@@ -126,17 +120,16 @@ void create_lck_file(char *name, enum lock_type type)
 
 //  Проверяет если все локи типа read и нужен read
 //  то дает разрешение
-bool check_lck_file_for_type(char *filename, enum lock_type type)
-{
-    if (!is_file_exist(filename))
-        return true;
+bool check_lck_file_for_read_type(char *filename, enum lock_type type)
+{    
     if (type == WRITE)
         return false;
     int file = open(filename, O_RDONLY);
     FILE *stream = fdopen(file, "r");
 
     char *line = NULL;
-    size_t len = 0, read = 0;
+    size_t len = 0;
+    ssize_t read = 0;
 
     while ((read = getline(&line, &len, stream)) != -1) {
         char *pid = strtok(line, " ");
