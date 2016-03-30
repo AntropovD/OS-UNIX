@@ -11,6 +11,7 @@ enum lock_type {
 };
 
 bool check_lck_file_for_type(char *name, enum lock_type type);
+bool check_if_all_locks_type_are_read(char *filename);
 
 char *concat_lck_extension(char * source);
 
@@ -23,6 +24,7 @@ int open_filename_with_type(char *filename, enum lock_type type);
 
 
 void create_lck_file(char *name, enum lock_type type);
+void delete_only_your_read_block_in_file(char *lck_1st_level);
 
 void lock(char *filename, int *fd, enum lock_type type);
 void unlock(char *filename, int fd, enum lock_type type);
