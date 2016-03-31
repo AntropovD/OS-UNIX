@@ -1,4 +1,4 @@
-#include <stdio.h>
+﻿#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -44,17 +44,16 @@ void update_password_file(char *filename, char *username, char *password) {
         if (line == NULL)
             break;
 
-        char *tmp_line = (char *)malloc(sizeof(char) * read);
-        strncpy(tmp_line, line, read);
         char *old_username = strtok(line, " ");
         if (strcmp(username, old_username) == 0) {
             modify_user_and_password_in_file(filename, username,
                                              password, position, read);
         }
+        else
+            unlock(filename, READ);
         if (DEBUG)
             printf("###############################################\n");
         free(line);
-        free(tmp_line);
         position += read;        
     }
     free(line);
@@ -63,22 +62,20 @@ void update_password_file(char *filename, char *username, char *password) {
 char *can_handle_next_line(char *filename, long int *position, ssize_t *read)
 {
     char *line = NULL;
-    int fd;
     size_t len = 0;
-    lock(filename, &fd,  READ);
-    FILE *fr = fdopen(fd, "r");
+    lock(filename, READ);
+    FILE *fr = fopen(filename, "r");
     fseek(fr, *position, SEEK_SET);
     *read = getline(&line, &len, fr);
     if (*read == -1) {
         fclose(fr);
-        unlock(filename, fd, READ);
+        unlock(filename, READ);
         return NULL;
     }
     if (DEBUG)
         printf("DEBUG: +\n");
     if (SLEEP) sleep(1);
     fclose(fr);
-    unlock(filename, fd, READ);
     return line;
 }
 
@@ -87,34 +84,42 @@ void modify_user_and_password_in_file(char *filename, char *username,
 {
     if (DEBUG)
         printf("DEBUG: Start modifiyng\n");
-    int tmp;
-    lock(filename, &tmp, WRITE);
-    lock(".tmp", &tmp, WRITE);
+
+    char *tmp_filename = (char *)calloc(40, sizeof(char));
+    strcpy(tmp_filename, filename);
+    sprintf(tmp_filename, "%s", filename);
+    sprintf(tmp_filename, ".%ld", (long)getpid());
+
+    unlock(filename, READ);
+    lock(filename, WRITE);
+    lock(tmp_filename, WRITE);
+
     FILE *rp = fopen(filename, "r");
-    FILE *wp = fopen(".tmp", "w");
+    FILE *wp = fopen(tmp_filename, "w");
     int i, c;
     for (i = 0; i < position; i++) {
         c = fgetc(rp);
         fputc(c, wp);
     }
-    if (SLEEP) sleep(3);
+    if (SLEEP) sleep(1);
     fprintf(wp, "%s %s\n", username, password);
-    if (SLEEP) sleep(3);
+    if (SLEEP) sleep(1);
     fseek(rp, (long)read, SEEK_CUR);
     while ((c=fgetc(rp)) != EOF) {
         fputc(c, wp);
     }
-    if (SLEEP) sleep(3);
+    if (SLEEP) sleep(1);
     fclose(rp);
     fclose(wp);
 
     if (DEBUG)
         printf("DEBUG: Rewrite starts\n");
-    if (SLEEP) sleep(3);
+    if (SLEEP) sleep(1);
     remove(filename);
-    rename(".tmp", filename);
-    unlock(filename, tmp,  WRITE);
-    unlock(".tmp", tmp, WRITE);
+    rename(tmp_filename, filename);
+    unlock(filename, WRITE);
+    unlock(tmp_filename, WRITE);
     if (DEBUG)
         printf("DEBUG: Finish modifiyng\n");
+    free(tmp_filename);
 }

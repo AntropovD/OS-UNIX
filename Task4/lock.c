@@ -9,29 +9,29 @@
 #include "lock.h"
 
 
-void lock(char *filename, int *fd, enum lock_type type)
+void lock(char *filename, enum lock_type type)
 {    
     char *lck_1st_level = concat_lck_extension(filename);
     char *lck_2nd_level = concat_lck_extension(lck_1st_level);
 
     // zero level
     if (!is_file_exist(lck_1st_level) && !is_file_exist(lck_2nd_level)) {
-        *fd = get_descriptor_if_not_locked(filename, type);     
+        get_descriptor_if_not_locked(filename, type);
     }
     // 1st level exists but second not
     else if (is_file_exist(lck_1st_level) && !is_file_exist(lck_2nd_level)) {
-        *fd = get_descriptor_1st_level(filename, type);        
+        get_descriptor_1st_level(filename, type);
     }
     // 1st level exists and 2nd too
     else if (is_file_exist(lck_2nd_level)) {
-        *fd = get_descriptor_2nd_level(filename, type);
+        get_descriptor_2nd_level(filename, type);
     }
     free(lck_1st_level);
     free(lck_2nd_level);
     return;
 }
 
-int get_descriptor_if_not_locked(char *filename, enum lock_type type)
+void get_descriptor_if_not_locked(char *filename, enum lock_type type)
 {
     char *lck_1st_level = concat_lck_extension(filename);
     char *lck_2nd_level = concat_lck_extension(lck_1st_level);
@@ -44,10 +44,10 @@ int get_descriptor_if_not_locked(char *filename, enum lock_type type)
 
     free(lck_1st_level);
     free(lck_2nd_level);
-    return open_filename_with_type(filename, type);
+    return;
 }
 
-int get_descriptor_1st_level(char *filename, enum lock_type type)
+void get_descriptor_1st_level(char *filename, enum lock_type type)
 {
     char *lck_1st_level = concat_lck_extension(filename);
     char *lck_2nd_level = concat_lck_extension(lck_1st_level);
@@ -73,10 +73,9 @@ int get_descriptor_1st_level(char *filename, enum lock_type type)
 
     free(lck_1st_level);
     free(lck_2nd_level);
-    return open_filename_with_type(filename, type);
 }
 
-int get_descriptor_2nd_level(char *filename, enum lock_type type)
+void get_descriptor_2nd_level(char *filename, enum lock_type type)
 {
     char *lck_1st_level = concat_lck_extension(filename);
     char *lck_2nd_level = concat_lck_extension(lck_1st_level);
@@ -103,17 +102,15 @@ int get_descriptor_2nd_level(char *filename, enum lock_type type)
 
     free(lck_1st_level);
     free(lck_2nd_level);
-    return open_filename_with_type(filename, type);;
 }
 
-void unlock(char * filename, int fd, enum lock_type type)
-{    
-    close(fd);
+void unlock(char * filename, enum lock_type type)
+{
     char *lck_1st_level = concat_lck_extension(filename);
 
     if (type == WRITE)
         unlink(lck_1st_level);
-    else {
+    else if (type == READ) {
         delete_only_your_read_block_in_file(lck_1st_level);
     }
     free(lck_1st_level);
@@ -178,8 +175,7 @@ void create_lck_file(char *name, enum lock_type type)
 
 bool check_if_all_locks_type_are_read(char *filename)
 {
-    int file = open(filename, O_RDONLY);
-    FILE *stream = fdopen(file, "r");
+    FILE *stream = fopen(filename, "r");
 
     char *line = NULL;
     size_t len = 0;
@@ -190,13 +186,11 @@ bool check_if_all_locks_type_are_read(char *filename)
         char *type = strtok(NULL, " ");
         if (strcmp(type, "Read\n") != 0) {
             fclose(stream);
-            close(file);
             return false;
         }
     }
     if (line) free(line);
     fclose(stream);
-    close(file);
     return true;
 }
 
@@ -214,10 +208,3 @@ int is_file_exist(char *filename)
     return stat(filename, &st) == 0;
 }
 
-int open_filename_with_type(char *filename, enum lock_type type)
-{
-    if (type == WRITE)
-        return open(filename, O_WRONLY);
-    else
-        return open(filename, O_RDONLY);
-}
