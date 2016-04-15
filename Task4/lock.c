@@ -64,8 +64,6 @@ void get_descriptor_1st_level(char *filename, enum lock_type type)
             while (is_file_exist(lck_1st_level))
                 sleep(1);
     }
-
-
     create_lck_file(lck_1st_level, type);
     if (DEBUG) printf("DEBUG: Lock on file %s installed %d level 1\n",
            filename, (int)type);
