@@ -3,6 +3,7 @@
 #include <string.h>
 #include <pthread.h>
 #include <time.h>
+#include  <signal.h>
 
 #include <netdb.h>
 #include <netinet/in.h>
@@ -45,6 +46,7 @@ void print_board();
 int count(int i, int j);
 int get_value(int x, int y);
 
+void ctrlc_handler(int param);
 
 pthread_t thread;
 
@@ -52,6 +54,8 @@ int main()
 {   
 	printf("Creates server on port 5001\n");
 	printf("Returns a new condition Game of life every second\n");	
+	
+	signal(SIGINT, ctrlc_handler);
 	
     if (pthread_create(&thread, NULL, start_server, NULL) != 0) {
         return EXIT_FAILURE;
@@ -61,6 +65,12 @@ int main()
 		make_step();
 		sleep(1);
 	}
+}
+
+void ctrlc_handler(int param) {	
+	printf("Exit program");
+	pthread_cancel(thread);
+	exit(1); 
 }
 
 void *start_server()
