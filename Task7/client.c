@@ -12,8 +12,11 @@
 #define HEIGHT 20
 #define WIDTH 40
 
-int main(int argc, char *argv[])
+int main()
 {
+   printf("Client for socket game of line\n");
+   printf("Listen to %s:%s\n", HOST, PORT);
+   
    int sockfd, portno, n;
    struct sockaddr_in serv_addr;
    struct hostent *server;
