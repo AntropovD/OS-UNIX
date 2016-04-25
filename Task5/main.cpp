@@ -1,10 +1,17 @@
-#include <iostream>
+#include <stdio.h>
 
-using namespace std;
 
-int main()
+int main(int argc, char **argv)
 {
-    cout << "Hello World!" << endl;
+    if (argc != 4) {
+        printf("Parallel matrix multiplication\n");
+        printf("Usage: %s input result\n");
+        //return 0;
+    }
+
+
+
+
+
     return 0;
 }
-
