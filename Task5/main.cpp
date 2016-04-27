@@ -1,100 +1,319 @@
+#include <algorithm>
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/select.h>
+#include <sys/types.h>
+#include <sys/wait.h>
 #include <vector>
+#include <unistd.h>
+
+#define BLOCK_SIZE 6
 
 struct matrix {
     std::vector<int> data;
-    int width;
-    int height;
+    int size;
 
-    struct matrix get_submatrix(int a, int b, int c, int d) {
-        std::vector<int> data;
-        if (c < a || d < b) {
-            printf("Error! Wrong parameters");
-            exit(2);
-        }
-        int size = this->height * this->width;
-        int x, y;
-        for (int i=0; i < size; i++) {
-            x = i / width;
-            y = i % width;
-            if (a <= x && x <= c && b <= y && b <= d)
-                data.push_back(this->data[i]);
-        }
+    struct matrix get_submatrix(int a, int b, int n) {
         struct matrix result;
-        result.data = data;
-        result.height = c - a;
-        result.width = d - b;
+        result.data.assign(BLOCK_SIZE * BLOCK_SIZE, 0);
 
+        for (int i = 0; i < BLOCK_SIZE; i++)
+             for (int j = 0; j < BLOCK_SIZE; j++)
+                 result.data[(i * BLOCK_SIZE) + j] = this->data[(a+i) * this->size + b + j];
+
+        result.size = n;
         return result;
     }
 
-    void print() {
-        printf("%d %d\n", this->height, this->width);
-        for (int i = 0; i < this->height; i++) {
-            for (int j = 0; j < this->width; j++)
-                printf("%d ", this->data[i * this->width + j]);
-            printf("\n");
+    void print(FILE *fd) {
+        fprintf(fd, "%d\n", this->size);
+        for (int i = 0; i < this->size; i++) {
+            for (int j = 0; j < this->size; j++)
+                fprintf(fd, "%d ", this->data[i * this->size + j]);
+            fprintf(fd, "\n");
         }
     }
+
+    void read_from_fd(FILE *fd) {
+        int n, tmp;
+        fscanf(fd, "%d", &n);
+        for (int i=0; i<n*n; i++) {
+            fscanf(fd, "%d", &tmp);
+            this->data.push_back(tmp);
+        }
+        this->size = n;
+    }
 };
+
+struct my_pipe {
+    int read;
+    int write;
+};
+
+void get_input_data(char *filename);
+void update_input_data();
+void update_matrix(matrix *M);
+
+void extract_blocks();
+void send_sub_matrixes_to_handles(int x, int y, struct matrix M1, struct matrix M2);
+void handle_matrixes(struct my_pipe p);
+struct matrix multiply_matrix(struct matrix M1, struct matrix M2);
+
+void wait_all_processes();
+
+void print_result(char *filename);
+struct matrix build_matrix_from_parts();
+
+std::vector<my_pipe> pipes;
+std::vector<pid_t> pids;
 
 struct matrix matrix1;
 struct matrix matrix2;
 
-void get_input_data(char *filename);
-void read_from_fd_to_matrix(FILE *fd, struct matrix *M);
+int old_size;
 
 int main(int argc, char **argv)
 {
-    if (argc != 4) {
+    if (argc != 3) {
         printf("Parallel matrix multiplication\n");
         printf("Usage: %s input result\n", argv[0]);
-        //return 0;
+//        return 0;
     }
 
-    char *input = (char*)"input";
-    char *output = (char *)"result";
+    char *input_file = (char*)"input";
+    char *output_file = (char *)"result";
 
-    get_input_data(input);
+    get_input_data(input_file);
 
+    extract_blocks();
 
-    struct matrix sub = matrix1.get_submatrix(0,0, 3, 3);
-    sub.print();
+    wait_all_processes();
 
-
-
-
+    print_result(output_file);
     return 0;
 }
-
-
 
 void get_input_data(char *filename)
 {
     FILE *fd = fopen(filename, "r");
 
-    read_from_fd_to_matrix(fd, &matrix1);
-    read_from_fd_to_matrix(fd, &matrix2);
+    matrix1.read_from_fd(fd);    
+    matrix2.read_from_fd(fd);
 
-    if (matrix1.width != matrix2.height) {
-        printf("Error! Matrix sizes dont approach.\n");
-        matrix1.data.clear();
-        matrix2.data.clear();
-        exit(1);
-    }
+    update_input_data();
     fclose(fd);
 }
 
-void read_from_fd_to_matrix(FILE *fd, matrix *M)
+void update_input_data()
 {
-    int n, m, tmp;
-    fscanf(fd, "%d %d", &n, &m);
-
-    for (int i=0; i<n*m; i++) {
-        fscanf(fd, "%d", &tmp);
-        M->data.push_back(tmp);
-    }
-    M->height = n;
-    M->width = m;
+    update_matrix(&matrix1);
+    update_matrix(&matrix2);
 }
+
+// Если размеры матрицы не делятся на BLOCK_SIZE
+// то добьем нулевыми значениями
+void update_matrix(matrix *M)
+{
+    int shift_value = BLOCK_SIZE - M->size % BLOCK_SIZE;
+    int n = M->size;
+    old_size = n;
+    std::vector<int> new_data;
+
+    for (int i = 0; i < n; i++) {
+        for (int j = 0; j < n; j++) {
+            new_data.push_back(M->data[i * M->size + j]);
+        }
+        for (int j = 0; j < shift_value; j++)
+            new_data.push_back(0);
+    }
+
+    for (int i = 0; i < shift_value; i++)
+        for (int j = 0; j < n + shift_value; j++)
+             new_data.push_back(0);
+    M->data.clear();
+
+    M->data = new_data;
+    M->size = n + shift_value;
+
+}
+
+void extract_blocks()
+{
+    int n = matrix1.size;
+    for (int i = 0; i < n; i+= BLOCK_SIZE) {
+        for (int j = 0; j < n; j += BLOCK_SIZE) {
+            struct matrix sub_matrix1 = matrix1.get_submatrix(i, j, BLOCK_SIZE);
+            struct matrix sub_matrix2 = matrix2.get_submatrix(i, j, BLOCK_SIZE);
+
+            send_sub_matrixes_to_handles(i, j, sub_matrix1, sub_matrix2);
+        }
+    }    
+}
+
+void send_sub_matrixes_to_handles(int x, int y, matrix M1, matrix M2)
+{
+    int fd[2];
+
+    pid_t childpid;
+    pipe(fd);
+    if((childpid = fork()) == -1) {
+        printf("Error! Cannot fork\n");
+        exit(1);
+    }
+    my_pipe pipe;
+    pipe.read = fd[0];
+    pipe.write = fd[1];
+
+    if(childpid == 0) {
+        handle_matrixes(pipe);
+        exit(0);
+    } else {        
+        FILE *fd = fdopen(pipe.write, "w");
+        fprintf(fd, "%d %d\n", x, y);
+        M1.print(fd);
+        M2.print(fd);
+        fclose(fd);
+
+        pipes.push_back(pipe);
+        pids.push_back(childpid);
+    }
+}
+
+void handle_matrixes(my_pipe p)
+{
+    struct matrix M1;
+    struct matrix M2;
+    int x, y;
+
+    FILE *fd = fdopen(p.read, "r");
+    fscanf(fd, "%d %d", &x, &y);
+
+    M1.read_from_fd(fd);
+    M2.read_from_fd(fd);
+    fclose(fd);
+
+    struct matrix result;
+    result = multiply_matrix(M1, M2);
+    FILE *fd2 = fdopen(p.write, "w");
+
+    fprintf(fd2, "%d %d\n", x, y);
+    result.print(fd2);
+
+    fclose(fd2);
+}
+
+struct matrix multiply_matrix(struct matrix M1, struct matrix M2)
+{
+    struct matrix result;
+    int n = M1.size;
+    result.data.assign(n * n, 0);
+
+    for (int i = 0; i < n; i++) {
+        for (int j = 0; j < n; j++) {
+            int tmp = 0;
+            for (int k =0; k < n;  k++)
+                tmp += M1.data[i * n + k] * M2.data[k * n + j];
+            result.data[i*n + j] = tmp;
+        }
+    }
+    result.size = n;
+    return result;
+}
+
+void wait_all_processes()
+{
+    wait(NULL);
+}
+
+
+void print_result(char *filename)
+{
+    struct matrix result = build_matrix_from_parts();
+    result.print(fopen(filename, "w"));
+}
+
+struct matrix build_matrix_from_parts()
+{
+    struct matrix result;
+    int n = old_size;
+    result.size = n;
+    result.data.assign(n * n, 0);
+
+    for(std::vector<my_pipe>::iterator it = pipes.begin(); it != pipes.end(); it++) {
+        my_pipe pipe = *it;
+
+        FILE *fd = fdopen(pipe.read, "r");
+        int x, y;
+        fscanf(fd, "%d %d", &x, &y);
+
+        struct matrix sub_matrix;
+        sub_matrix.read_from_fd(fd);
+
+        for (int i = 0 ; i < BLOCK_SIZE; i++)
+            for (int j = 0; j < BLOCK_SIZE; j++)
+                if (i + x < n && j + y < n)
+                    result.data[(i+x) * n + j+y] = sub_matrix.data[i*BLOCK_SIZE + j];
+        fclose(fd);
+    }
+
+    return result;
+}
+
+/*
+void handle_matrixes(int file_descriptor)
+{
+    fd_set rfds;
+    struct timeval tv;
+    int retval;
+
+    FD_ZERO(&rfds);
+    FD_SET(file_descriptor, &rfds);
+
+    tv.tv_sec = 5;
+    tv.tv_usec = 0;
+
+    FILE *fd = fopen("asd", "w");
+    retval = select(1, &rfds, NULL, NULL, &tv);
+
+    if (retval == -1)
+        perror("select()");
+    else if (retval)
+    {
+        fprintf(fd, "Data is available now.\n");
+        char buffer[40];
+        int n = read(file_descriptor, buffer, 40);
+
+        fprintf(fd, "%s", buffer);
+    }
+    else
+        fprintf(fd, "No data within five seconds.\n");
+
+    fclose(fd);
+}
+*/
+//printf("%d %d - %d %d\n", i, j, std::min(n, i + BLOCK_SIZE), std::min(n, j + BLOCK_SIZE));
+/*
+fd_set wfds;
+struct timeval tv;
+int retval();
+
+FD_ZERO(&wfds);
+*/
+/*
+int fd[2];
+pid_t childpid;
+pipe(fd);
+if((childpid = fork()) == -1) {
+        printf("Error! Cannot fork\n");
+        exit(1);
+}
+if(childpid == 0) {
+    //handle_matrixes(fd[0]);
+    exit(0);
+} else {
+    char *buf = (char *)"Hello world!";
+    write(fd[1], buf, sizeof(buf));
+     Read in a string from the pipe *
+//                nbytes = read(fd[0], readbuffer, sizeof(readbuffer));
+//                printf("Received string: %s", readbuffer);
+*/
