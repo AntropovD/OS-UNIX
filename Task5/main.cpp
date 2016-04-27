@@ -1,8 +1,10 @@
 #include <algorithm>
+#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/select.h>
 #include <sys/types.h>
+#include <sys/stat.h>
 #include <sys/wait.h>
 #include <vector>
 #include <unistd.h>
@@ -61,6 +63,9 @@ struct matrix multiply_matrix(struct matrix M1, struct matrix M2);
 
 void wait_all_processes();
 
+void select_read(int fd);
+void select_write(int fd);
+
 void print_result(char *filename);
 struct matrix build_matrix_from_parts();
 
@@ -71,25 +76,28 @@ struct matrix matrix1;
 struct matrix matrix2;
 
 int old_size;
+int file_exist (char *filename);
 
 int main(int argc, char **argv)
 {
     if (argc != 3) {
         printf("Parallel matrix multiplication\n");
         printf("Usage: %s input result\n", argv[0]);
-//        return 0;
+        return 0;
     }
 
-    char *input_file = (char*)"input";
-    char *output_file = (char *)"result";
+    if (!file_exist(argv[1])) {
+        printf("File doesnt exist\n");
+        exit(1);
+    }
 
-    get_input_data(input_file);
+    get_input_data(argv[1]);
 
     extract_blocks();
 
     wait_all_processes();
 
-    print_result(output_file);
+    print_result(argv[2]);
     return 0;
 }
 
@@ -185,6 +193,7 @@ void handle_matrixes(my_pipe p)
     struct matrix M2;
     int x, y;
 
+    select_read(p.read);
     FILE *fd = fdopen(p.read, "r");
     fscanf(fd, "%d %d", &x, &y);
 
@@ -194,6 +203,8 @@ void handle_matrixes(my_pipe p)
 
     struct matrix result;
     result = multiply_matrix(M1, M2);
+
+    select_write(p.write);
     FILE *fd2 = fdopen(p.write, "w");
 
     fprintf(fd2, "%d %d\n", x, y);
@@ -226,6 +237,44 @@ void wait_all_processes()
 }
 
 
+void select_read(int fd) {
+    fd_set rfds;
+    struct timeval tv;
+    int retval;
+
+    FD_ZERO(&rfds);
+    FD_SET(fd, &rfds);
+
+    tv.tv_sec = 5;
+    tv.tv_usec = 0;
+
+    retval = select(1024, &rfds, NULL, NULL, &tv);
+
+    if (!retval) {
+        printf("Select read error\n");
+        exit(2);
+    }
+}
+
+void select_write(int fd) {
+    fd_set wfds;
+    struct timeval tv;
+    int retval;
+
+    FD_ZERO(&wfds);
+    FD_SET(fd, &wfds);
+
+    tv.tv_sec = 5;
+    tv.tv_usec = 0;
+
+    retval = select(1024, NULL, &wfds, NULL, &tv);
+
+    if (!retval) {
+        printf("Select write error\n");
+        exit(2);
+    }
+}
+
 void print_result(char *filename)
 {
     struct matrix result = build_matrix_from_parts();
@@ -257,6 +306,12 @@ struct matrix build_matrix_from_parts()
     }
 
     return result;
+}
+
+int file_exist (char *filename)
+{
+    struct stat buffer;
+    return (stat (filename, &buffer) == 0);
 }
 
 /*
