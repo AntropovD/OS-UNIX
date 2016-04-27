@@ -144,7 +144,7 @@ void update_matrix(matrix *M)
     M->size = n + shift_value;
 
 }
-
+// Divide matrix into blocks
 void extract_blocks()
 {
     int n = matrix1.size;
@@ -157,7 +157,7 @@ void extract_blocks()
         }
     }    
 }
-
+//Forking
 void send_sub_matrixes_to_handles(int x, int y, matrix M1, matrix M2)
 {
     int fd[2];
@@ -280,7 +280,7 @@ void print_result(char *filename)
     struct matrix result = build_matrix_from_parts();
     result.print(fopen(filename, "w"));
 }
-
+// Build full matrix from blocks
 struct matrix build_matrix_from_parts()
 {
     struct matrix result;
@@ -313,62 +313,3 @@ int file_exist (char *filename)
     struct stat buffer;
     return (stat (filename, &buffer) == 0);
 }
-
-/*
-void handle_matrixes(int file_descriptor)
-{
-    fd_set rfds;
-    struct timeval tv;
-    int retval;
-
-    FD_ZERO(&rfds);
-    FD_SET(file_descriptor, &rfds);
-
-    tv.tv_sec = 5;
-    tv.tv_usec = 0;
-
-    FILE *fd = fopen("asd", "w");
-    retval = select(1, &rfds, NULL, NULL, &tv);
-
-    if (retval == -1)
-        perror("select()");
-    else if (retval)
-    {
-        fprintf(fd, "Data is available now.\n");
-        char buffer[40];
-        int n = read(file_descriptor, buffer, 40);
-
-        fprintf(fd, "%s", buffer);
-    }
-    else
-        fprintf(fd, "No data within five seconds.\n");
-
-    fclose(fd);
-}
-*/
-//printf("%d %d - %d %d\n", i, j, std::min(n, i + BLOCK_SIZE), std::min(n, j + BLOCK_SIZE));
-/*
-fd_set wfds;
-struct timeval tv;
-int retval();
-
-FD_ZERO(&wfds);
-*/
-/*
-int fd[2];
-pid_t childpid;
-pipe(fd);
-if((childpid = fork()) == -1) {
-        printf("Error! Cannot fork\n");
-        exit(1);
-}
-if(childpid == 0) {
-    //handle_matrixes(fd[0]);
-    exit(0);
-} else {
-    char *buf = (char *)"Hello world!";
-    write(fd[1], buf, sizeof(buf));
-     Read in a string from the pipe *
-//                nbytes = read(fd[0], readbuffer, sizeof(readbuffer));
-//                printf("Received string: %s", readbuffer);
-*/
